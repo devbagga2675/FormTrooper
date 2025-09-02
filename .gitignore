@@ -1,0 +1,66 @@
+# =========================================================================
+# GENERAL & OS-SPECIFIC
+# =========================================================================
+
+# Environment variables
+# Never commit secrets or local configuration
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+
+# Operating System generated files
+.DS_Store
+Thumbs.db
+
+# IDE and editor directories
+.vscode/
+.idea/
+
+
+# =========================================================================
+# PYTHON BACKEND (ai-service)
+# =========================================================================
+
+# Virtual Environments
+# This is the most important one for your current situation
+venv/
+.venv/
+env/
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local database instances
+# To ignore the local vector database
+chroma_db/
+
+# Distribution and packaging artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+
+# =========================================================================
+# NODE.JS / VITE FRONTEND (formtrooper-frontend)
+# =========================================================================
+
+# Dependencies
+# This directory can be massive and is always re-created with `npm install`
+node_modules/
+
+# Build output
+# The 'dist' folder is also covered in the Python section, but it's good practice
+# to list it here for clarity. This is where Vite places the production build.
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
