@@ -9,4 +9,4 @@ app.include_router(generation.router, prefix="/api/v1", tags=["Generation"])
 
 @app.get("/", tags=["Health Check"])
 async def root():
-    return {"message": "AI Service is running!"}
+    return {"message": "AI Service is up and running!"}
