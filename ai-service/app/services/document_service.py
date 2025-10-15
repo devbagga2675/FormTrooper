@@ -1,45 +1,85 @@
+import io
+import re
 import requests
-import tempfile
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+import fitz  # PyMuPDF
 from langchain_chroma import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.embeddings import JinaEmbeddings
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_pinecone import PineconeVectorStore
 from app.core.config import settings
+import os
+os.environ["PINECONE_API_KEY"] = settings.PINECONE_API_KEY
+# Initialize the Jina embedding model with the API key
+embeddings = JinaEmbeddings(
+    model_name="jina-embeddings-v3",
+    jina_api_key=settings.JINA_API_KEY
+)
 
-# Initialize the embedding model
-embeddings = GoogleGenerativeAIEmbeddings(model="embedding-gecko", google_api_key=settings.GEMINI_API_KEY)
+vector_store = Chroma(
+    embedding_function=embeddings,
+    persist_directory="./chroma_db"
+)
 
-# Initialize a simple in-memory vector store
-# In a production app, you would use a persistent database like PostgreSQL with pgvector.
-vector_store = Chroma(embedding_function=embeddings, persist_directory="./chroma_db")
-
-def process_document_from_url(url: str):
+def clean_text(text: str) -> str:
     """
-    Downloads a document, processes it, and loads its content into the vector store.
+    A simple and safe text cleaning function that normalizes whitespace.
     """
+    if not text:
+        return ""
+    # Replace multiple whitespace characters (including newlines) with a single space
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+def process_document_for_pinecone(url: str, namespace: str):
+    print(f"Processing document for Pinecone namespace: {namespace}")
+    """
+
+    Fetches a PDF from a URL, extracts text, cleans it, chunks it,
+    and stores the embeddings in a Chroma vector store.
+    """
+    print(f"Starting processing for document from: {url}")
+    
     try:
+
+        # 1. Fetch the document into an in-memory buffer
         response = requests.get(url)
         response.raise_for_status()
+        pdf_buffer = io.BytesIO(response.content)
+        
+        # 2. Open the PDF from the buffer with PyMuPDF and extract text
+        pdf_doc = fitz.open(stream=pdf_buffer, filetype="pdf")
+        full_text = "".join(page.get_text() for page in pdf_doc)
+        
+        # 3. Clean the extracted text
+        cleaned_text = clean_text(full_text)
+        
+        if not cleaned_text:
+            print(f"Error: No processable text was found in the PDF from {url}.")
+            return
 
-        suffix = ".pdf" if ".pdf" in url.lower() else ".docx"
-        with tempfile.NamedTemporaryFile(delete=True, suffix=suffix) as temp_file:
-            temp_file.write(response.content)
-            temp_file.flush()
-
-            # if suffix == ".pdf":
-            loader = PyPDFLoader(temp_file.name)
-            # else:
-            #     raise ValueError("Unsupported document type for RAG.")
-
-            documents = loader.load()
-            print(documents)
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+        # 4. Create LangChain documents and split into chunks
+        documents = [Document(page_content=cleaned_text, metadata={"source": url})]
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000, 
+            chunk_overlap=150
+        )
         chunks = text_splitter.split_documents(documents)
 
-        # Add the document chunks to the vector store
-        vector_store.add_documents(chunks)
-        print(f"Successfully processed and embedded document from {url}")
+        # 5. Add the document chunks to the vector store
+        if chunks:
+        # Instead of saving to a local file, this sends the chunks and their
+        # embeddings to your Pinecone index.
+            PineconeVectorStore.from_documents(
+                documents=chunks,
+                embedding=embeddings,
+                index_name="formtrooper", # The name you gave your index in Pinecone
+                namespace=namespace
+            )
+            print(f"✅ Successfully embedded document to Pinecone namespace: {namespace}")
+        else:
+            raise ValueError("Text was extracted but resulted in no valid chunks.")
 
     except Exception as e:
-        print(f"Error processing document: {e}")
+        print(f"An unexpected error occurred: {e}")
         raise

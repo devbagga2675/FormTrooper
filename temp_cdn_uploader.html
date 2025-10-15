@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudinary PDF Uploader</title>
+    <style>
+        body { font-family: sans-serif; padding: 2em; line-height: 1.6; }
+        input, button { font-size: 1rem; padding: 0.5em; margin-bottom: 1em; width: 300px; }
+        button { width: auto; }
+        #result { background-color: #f0f0f0; padding: 1em; border-radius: 5px; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>Cloudinary PDF Uploader</h1>
+    <p>This tool uploads a raw PDF file to a specific Cloudinary folder and provides its public URL.</p>
+
+    <label for="cloudName">Your Cloudinary Cloud Name:</label><br>
+    <input type="text" id="cloudName" placeholder="e.g., daxz123ab"><br>
+
+    <label for="uploadPreset">Your Unsigned Upload Preset:</label><br>
+    <input type="text" id="uploadPreset" placeholder="e.g., ml_default"><br>
+    
+    <label for="folderName">Folder Name (optional):</label><br>
+    <input type="text" id="folderName" placeholder="e.g., form_documents"><br>
+
+    <label for="fileInput">Select PDF to Upload:</label><br>
+    <input type="file" id="fileInput" accept=".pdf"><br>
+
+    <button id="uploadButton">Upload to Cloudinary</button>
+
+    <h3>Resulting URL:</h3>
+    <pre id="result">The public URL will appear here...</pre>
+
+    <script>
+        const uploadButton = document.getElementById('uploadButton');
+        const fileInput = document.getElementById('fileInput');
+        const cloudNameInput = document.getElementById('cloudName');
+        const uploadPresetInput = document.getElementById('uploadPreset');
+        const folderNameInput = document.getElementById('folderName'); // Get the folder input
+        const resultDiv = document.getElementById('result');
+
+        uploadButton.addEventListener('click', async () => {
+            const file = fileInput.files[0];
+            const cloudName = cloudNameInput.value;
+            const uploadPreset = uploadPresetInput.value;
+            const folderName = folderNameInput.value; // Get the folder name
+
+            if (!file || !cloudName || !uploadPreset) {
+                resultDiv.textContent = 'Error: Please fill in Cloud Name, Preset, and select a file.';
+                return;
+            }
+
+            const url = `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`;
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', uploadPreset);
+            
+            // ADDED: Append the folder name if it's provided
+            if (folderName) {
+                formData.append('folder', folderName);
+            }
+
+            resultDiv.textContent = 'Uploading, please wait...';
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error.message);
+                }
+
+                resultDiv.textContent = data.secure_url;
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+                console.error('Upload failed:', error);
+            }
+        });
+    </script>
+</body>
+</html>
